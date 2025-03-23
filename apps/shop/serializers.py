@@ -3,6 +3,7 @@ from drf_spectacular.utils  import extend_schema_field
 
 from apps.sellers.serializers   import SellerSerializer
 from apps.profiles.serializers  import ShippingAddressSerializer, ProfileSerializer
+from apps.shop.models           import RATING_CHOICES, Review
 
 
 class CategorySerializer(serializers.Serializer):
@@ -20,6 +21,7 @@ class SellerShopSerializer(serializers.Serializer):
 class ProductSerializer(serializers.Serializer):
     seller = SellerShopSerializer()
     name = serializers.CharField()
+    rating = serializers.SerializerMethodField()
     slug = serializers.SlugField()
     desc = serializers.CharField()
     price_old = serializers.DecimalField(max_digits=10, decimal_places=2)
@@ -29,6 +31,14 @@ class ProductSerializer(serializers.Serializer):
     image1 = serializers.ImageField()
     image2 = serializers.ImageField(required=False)
     image3 = serializers.ImageField(required=False)
+
+    def get_rating(self, obj):
+        reviews = Review.objects.filter(product__slug=obj.slug).only('rating')
+        count = reviews.count()
+        if count == 0:
+            return 0
+        rating_sum = sum(review.rating for review in reviews)
+        return round(rating_sum / count, 1)
 
 
 class CreateProductSerializer(serializers.Serializer):
@@ -95,7 +105,16 @@ class CheckItemOrderSerializer(serializers.Serializer):
     total = serializers.FloatField(source="get_total")
 
 
-# in development
+class CreateReviewSerializer(serializers.Serializer):
+    product_slug = serializers.SlugField()
+    rating = serializers.IntegerField()
+    text = serializers.CharField(max_length=500)
+
+    def validate_rating(self, value):
+        if value not in dict(RATING_CHOICES).keys():
+            raise serializers.ValidationError(f"Рейтинг должен быть от {RATING_CHOICES[0][0]} до  {RATING_CHOICES[-1][0]}")
+        return value
+
 
 class ReviewSerializer(serializers.Serializer):
     user = serializers.EmailField(source='user.email', read_only=True)

@@ -9,12 +9,13 @@ urlpatterns = [
     path("categories/<slug:slug>/", ProductsByCategoryView.as_view()),
     path("sellers/<slug:slug>/", ProductsBySellerView.as_view()),
     path("products/", ProductsView.as_view()),
+
+    path("products/reviews/<slug:slug>/", ReviewsView.as_view()),
+    path("products/reviews/", CreateReviewView.as_view()),
+
     path("products/<slug:slug>/", ProductView.as_view()),
     path("cart/", CartView.as_view()),
     path("checkout/", CheckoutView.as_view()),
     path("orders/", OrderView.as_view()),
     path("orders/<str:tx_ref>/", OrderItemView.as_view()),
-    # in development
-    path("products/reviews/<slug:slug>/", ReviewsView.as_view()),
-    path("products/reviews/", CreateReviewView.as_view()),
 ]

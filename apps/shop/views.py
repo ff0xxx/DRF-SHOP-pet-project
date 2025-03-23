@@ -4,11 +4,12 @@ from drf_spectacular.utils      import extend_schema
 from rest_framework.pagination  import PageNumberPagination
 
 from apps.shop.serializers  import CategorySerializer, ProductSerializer, OrderItemSerializer, ToggleCartItemSerializer, \
-                                    CheckoutSerializer, OrderSerializer, CheckItemOrderSerializer, ReviewSerializer
+                                    CheckoutSerializer, OrderSerializer, CheckItemOrderSerializer, ReviewSerializer, CreateReviewSerializer
 from apps.shop.models       import Category, Product, Review
 from apps.sellers.models    import Seller
 from apps.profiles.models   import ShippingAddress, Order, OrderItem
 from apps.common.pagination import CustomPagination
+from apps.common.utils      import set_dict_attr
 from apps.shop.filters      import ProductFilter
 from apps.shop.schema_examples import PRODUCT_PARAM_EXAMPLE
 
@@ -272,8 +273,6 @@ class OrderItemView(APIView):
         return Response(data=serializer.data, status=200)
     
 
-# in development
-
 class ReviewsView(APIView):
     serializer_class = ReviewSerializer
 
@@ -292,30 +291,62 @@ class ReviewsView(APIView):
         serializer = self.serializer_class(reviews, many=True)
         return Response(data=serializer.data)
 
+    def delete(self, request, **kwargs):
+        product_slug = kwargs.get('slug')
+        product = Product.objects.get_or_none(slug=product_slug)
+        if not product:
+            return Response({'message': 'Product with this slug does not exist!'}, status=404)
+
+        if not product.reviews.filter(user=request.user).exists():
+            return Response({'message': 'You did not reviewed this product!'}, status=400)
+
+        Review.objects.get(product=product, user=request.user).delete()
+        return Response(data={'message': 'Review deleted successfully'}, status=204)
+
 
 class CreateReviewView(APIView):
-    serializer_class = ReviewSerializer
+    serializer_class = CreateReviewSerializer
 
     @extend_schema(
         summary='Create Review Fetch',
         description="This endpoint allows to create a product review",
         tags=tags,
+        request=CreateReviewSerializer,
     )
     def post(self, request, *args, **kwargs):
-        product_slug = request.data.get('slug')
+        data = request.data
+        product_slug = data.get('product_slug')
         product = Product.objects.get_or_none(slug=product_slug)
         if not product:
             return Response({'message': 'Product with this slug does not exist!'}, status=404)
 
-        if Review.objects.filter(user=request.user, product=product).exists():
+        if product.reviews.filter(user=request.user).exists():
             return Response({'message': 'You have already reviewed this product!'}, status=400)
 
-        data = request.data
-        data['user'] = request.user.email
-        data['product'] = product.slug
         serializer = self.serializer_class(data=data)
         if serializer.is_valid():
-            review = Review.objects.create(**serializer.validated_data)
-            serializer = self.serializer_class(review)
+            serializer.validated_data.pop('product_slug')
+            review = Review.objects.create(user=request.user, product=product, **serializer.validated_data)
+            serializer = ReviewSerializer(review)
             return Response(data=serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+    def put(self, request, *args, **kwargs):
+        data = request.data
+        product_slug = data.get('product_slug')
+        product = Product.objects.get_or_none(slug=product_slug)
+        if not product:
+            return Response({'message': 'Product with this slug does not exist!'}, status=404)
+
+        if not product.reviews.filter(user=request.user).exists():
+            return Response({'message': 'You did not reviewed this product!'}, status=400)
+
+        serializer = self.serializer_class(data=data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            review = Review.objects.get(user=request.user, product=product)
+            review = set_dict_attr(review, data)
+            review.save()
+            return Response({'message': 'Your review successfully updated!'}, status=200)
+
         return Response(serializer.errors, status=400)

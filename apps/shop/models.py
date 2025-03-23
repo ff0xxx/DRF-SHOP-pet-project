@@ -36,14 +36,12 @@ class Product(IsDeletedModel):
         return str(self.name)
 
 
-# in development
-
 RATING_CHOICES = (
     (1, 1),
     (2, 2),
     (3, 3),
     (4, 4),
-    (5,5 ),
+    (5, 5),
 )
 
 class Review(IsDeletedModel):
